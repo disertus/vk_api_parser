@@ -106,11 +106,11 @@ def extract_item_ids(community_id: int, post_id: int):
 if __name__ == "__main__":
     create_working_folders()
     base_url = "https://api.vk.com/"
-    service_token = "5646046956460469564604698e563a2401556465646046934132f75f0b7163c36e9695d"
+    service_token = "TOKEN"
     api_version = 5.131
     before_war_time = 1645270728
 
-    for owner_id in extract_community_ids(filepath="files_list_first.txt"):
+    for owner_id in extract_community_ids(filepath="community_id_list.txt"):
         print(f"Parsing post data for https://vk.com/public{abs(owner_id)}")
         post_url = (
             base_url + f"method/wall.get?owner_id={owner_id}"
