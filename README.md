@@ -26,3 +26,14 @@ In order to change the end date pass a date of format "YYYY-MM-DD" as `--date` a
 `python3 main.py --token "YOUR TOKEN" --date "2022-04-15"`
 
 `--date` argument is optional ("2022-02-19" is passed by default).
+
+---
+
+#### Delay between requests
+
+You can modify the delay between requests in order to speed up or slow down the extraction of posts and comments.
+To change the delay to 0.5 seconds pass a `--delay` argument:
+
+```python3 main.py --token "YOUR TOKEN" --delay 0.5 ```
+
+`--delay` argument is optional (1 second is passed by default)
