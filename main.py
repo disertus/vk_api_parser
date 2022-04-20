@@ -1,6 +1,8 @@
 import parsers.comments_parser as comments_parser
 import parsers.posts_parser as posts_parser
 
+import argparse
+import datetime
 import json
 import logging
 import os
@@ -17,6 +19,7 @@ logging.basicConfig(
 
 
 def create_working_folders():
+    """Create folders where the files containing parsed data will be stored"""
     try:
         os.system("mkdir parsed_comments")
         os.system("mkdir parsed_posts_info")
@@ -26,7 +29,7 @@ def create_working_folders():
 
 
 def get_request_response(url):
-    attempts = 0
+    """Send a get request and return its response if the request was successful. Retry upon failure."""
     try:
         response = requests.get(url)
         if response.status_code == 200:
@@ -37,15 +40,15 @@ def get_request_response(url):
                 f"Encountered an error while sending a request, ending the process. Status code {response.status_code}"
             )
     except Exception as e:
-        print("ERROR: " + e)
+        print(f"ERROR: {e}")
+        logging.error(e)
         time.sleep(2)
-        attempts += 1
         get_request_response(url)
 
 
-def iterate_until_required_date(
-    latest_post_timestamp: int, community_id: int, url: str, parser
-):
+def iterate_until_required_date(latest_post_timestamp: int, community_id: int, url: str, parser):
+    """Repeatedly sends get requests to the API while incrementing the offset by 100 in order to reach the next
+    batch of items. Interrupts once the list of items is exhausted."""
     offset = 0
     reached_latest_timestamp = False
     while 1:
@@ -70,6 +73,7 @@ def iterate_until_required_date(
 
 
 def extract_community_ids(filepath: str):
+    """Get community ids from the file, extract the integers following the prefix"""
     owner_id_list = []
     with open(filepath, "r") as file:
         for line in file.readlines():
@@ -78,9 +82,10 @@ def extract_community_ids(filepath: str):
     return owner_id_list
 
 
-def extract_item_ids(community_id: int, post_id: int):
-    # if post_id equals 0, extract parsed post_ids. otherwise parse comment_ids
-    if post_id == 0:
+def extract_item_ids(community_id: int, item_id: int):
+    """Get post ids or comment ids depending on the context.
+    If post_id equals 0, extract parsed post_ids. Otherwise parse comment_ids"""
+    if item_id == 0:
         temp_id_list = []
         with open(
             f"{os.getcwd()}/parsed_posts_info/{abs(community_id)}.txt", "r"
@@ -89,12 +94,31 @@ def extract_item_ids(community_id: int, post_id: int):
                 temp_id_list.append(json.loads(line)["post_id"])
         return temp_id_list
     else:
-        temp_id_dict = {}
-        with open(
-            f"{os.getcwd()}/parsed_comments/{abs(community_id)}.txt", "r"
-        ) as file:
-            for line in file.readlines():
-                pass
+        pass
+        # temp_id_dict = {}
+        # with open(
+        #     f"{os.getcwd()}/parsed_comments/{abs(community_id)}.txt", "r"
+        # ) as file:
+        #     for line in file.readlines():
+        #         pass
+
+
+def parse_arguments():
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument("-d", "--date",
+                           help='''Date in "YYYY-MM-DD" format.
+                           The parser will get all available posts and their comments from VK API starting from now 
+                           and till this date. The default value is "2022-02-19".''',
+                           type=str,
+                           default="2022-02-19")
+    argparser.add_argument("-t", "--token",
+                           help="The token required to access VK API.",
+                           type=str)
+    return argparser.parse_args()
+
+
+def date_string_to_timestamp(date_string: str):
+    return time.mktime(datetime.datetime.strptime(date_string, "%Y-%m-%d").timetuple())
 
 
 # def extract_parsed_comment_ids(community_id: int, post_id: int):
@@ -105,20 +129,25 @@ def extract_item_ids(community_id: int, post_id: int):
 
 if __name__ == "__main__":
     create_working_folders()
+    flags = parse_arguments()
+
     base_url = "https://api.vk.com/"
-    service_token = "TOKEN"
     api_version = 5.131
-    before_war_time = 1645270728
+    end_date = date_string_to_timestamp(flags.date)
+    print(f"End date argument: {flags.date}")
+    if not flags.token:
+        print("Please provide a token to access the API. Check the README.md file for more details.")
+        exit()
 
     for owner_id in extract_community_ids(filepath="community_id_list.txt"):
         print(f"Parsing post data for https://vk.com/public{abs(owner_id)}")
         post_url = (
             base_url + f"method/wall.get?owner_id={owner_id}"
-            f"&access_token={service_token}"
+            f"&access_token={flags.token}"
             f"&v={api_version}&count=100"
         )
         iterate_until_required_date(
-            before_war_time,
+            end_date,
             abs(owner_id),
             post_url,
             posts_parser.parse_json_post_response,
@@ -128,14 +157,14 @@ if __name__ == "__main__":
         for post_id in tqdm(extract_item_ids(owner_id, post_id=0)):
             comment_url = (
                 base_url + f"method/wall.getComments?owner_id={owner_id}"
-                f"&access_token={service_token}"
+                f"&access_token={flags.token}"
                 f"&v={api_version}&count=100"
                 f"&post_id={post_id}&sort=desc&extended=1"
                 f"&fields=sex,bdate,country,city,contacts"
                 f"&thread_items_count=10"
             )
             iterate_until_required_date(
-                before_war_time,
+                end_date,
                 abs(owner_id),
                 comment_url,
                 comments_parser.parse_json_comment_response,
