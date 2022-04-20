@@ -46,7 +46,7 @@ def get_request_response(url):
         get_request_response(url)
 
 
-def iterate_until_required_date(latest_post_timestamp: int, community_id: int, url: str, parser):
+def iterate_until_required_date(latest_post_timestamp: int, community_id: int, url: str, parser, delay):
     """Repeatedly sends get requests to the API while incrementing the offset by 100 in order to reach the next
     batch of items. Interrupts once the list of items is exhausted."""
     offset = 0
@@ -66,7 +66,7 @@ def iterate_until_required_date(latest_post_timestamp: int, community_id: int, u
             if len(response["response"]["items"]) < 100:
                 break
             offset += 100
-            time.sleep(1)
+            time.sleep(delay)
         except Exception as e:
             print(f"An error occurred while parsing the response {response}: \n{e}")
             break
@@ -105,7 +105,7 @@ def extract_item_ids(community_id: int, item_id: int):
 
 def parse_arguments():
     argparser = argparse.ArgumentParser()
-    argparser.add_argument("-d", "--date",
+    argparser.add_argument("-dt", "--date",
                            help='''Date in "YYYY-MM-DD" format.
                            The parser will get all available posts and their comments from VK API starting from now 
                            and till this date. The default value is "2022-02-19".''',
@@ -114,11 +114,17 @@ def parse_arguments():
     argparser.add_argument("-t", "--token",
                            help="The token required to access VK API.",
                            type=str)
+    argparser.add_argument("-dl", "--delay",
+                           help='''Delay between requests in seconds. 
+                           The lower the delay the lower are the chances of
+                           getting an error for exceeding the rps limit. The default value is 1''',
+                           type=float,
+                           default=1)
     return argparser.parse_args()
 
 
 def date_string_to_timestamp(date_string: str):
-    return time.mktime(datetime.datetime.strptime(date_string, "%Y-%m-%d").timetuple())
+    return round(time.mktime(datetime.datetime.strptime(date_string, "%Y-%m-%d").timetuple()))
 
 
 # def extract_parsed_comment_ids(community_id: int, post_id: int):
@@ -151,10 +157,11 @@ if __name__ == "__main__":
             abs(owner_id),
             post_url,
             posts_parser.parse_json_post_response,
+            flags.delay
         )
 
         print(f"Extracting comments: ")
-        for post_id in tqdm(extract_item_ids(owner_id, post_id=0)):
+        for post_id in tqdm(extract_item_ids(owner_id, item_id=0)):
             comment_url = (
                 base_url + f"method/wall.getComments?owner_id={owner_id}"
                 f"&access_token={flags.token}"
@@ -168,4 +175,5 @@ if __name__ == "__main__":
                 abs(owner_id),
                 comment_url,
                 comments_parser.parse_json_comment_response,
+                flags.delay
             )
